@@ -12,31 +12,10 @@ import (
 //## TYPES AND VARS
 //##################
 
-//The SessionType type is a int based type used to define consts below (SESSION & SYSTEM)
-type SessionType int
-
-const (
-	//SESSION Contant is used in initSession to let the user create a sessionBus
-	SESSION SessionType = iota
-	//SYSTEM Contant is used in initSession to let the user create a sessionBus
-	SYSTEM SessionType = iota
-)
-
 //AbsSignal type is a copy of dbus.Signal type, used to parse received signals
 type AbsSignal struct {
 	Recv    *dbus.Signal
 	Signame string
-}
-
-type IAbstraction interface {
-	GetConn() *dbus.Conn
-	InitSession(SessionType, string) error
-	GetSignal(string) ([]interface{}, error)
-	GetChannel(string) chan *AbsSignal
-	ExportMethods(interface{}, dbus.ObjectPath, string)
-	CallMethod(dbus.ObjectPath, string, string, string, ...interface{}) *dbus.Call
-	ListenSignalFromSender(string, string, string, string)
-	CloseSession()
 }
 
 //Abstraction type contains the necessary vars and is used as receiver of our methods
@@ -65,19 +44,14 @@ func New() *Abstraction {
 //Parameters :
 //              s -> dbus.SessionType : equal to SESSION or SYSTEM
 //              n -> string           : name you want to request over the bus (or "")
-func (d *Abstraction) InitSession(s SessionType, n string) error {
+func (d *Abstraction) InitSession(n string) error {
 	var err error
 	var conn *dbus.Conn
 
 	if d.Conn != nil {
 		return errors.New("[DBUS ABSTRACTION ERROR - initSession - Session already initialized]")
 	}
-
-	if s == SESSION {
-		conn, err = dbus.SessionBus()
-	} else {
-		conn, err = dbus.SystemBus()
-	}
+	conn, err = GetDbus()
 	if err != nil {
 		return err
 	}
@@ -222,13 +196,4 @@ func (d *Abstraction) signalsHandler() {
 			d.Sigmap[v.Name] <- &t
 		}
 	}
-}
-
-// CloseSession method stops the goroutine running the signalsHandler function, and deletes internal data
-func (d *Abstraction) CloseSession() {
-	for k, v := range d.Sigmap {
-		delete(d.Sigmap, k)
-		close(v)
-	}
-	d.Conn.RemoveSignal(d.Recv)
 }
